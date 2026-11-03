@@ -1,28 +1,34 @@
 ---
 name: blog-draft
-description: inputs/<글이름>/ 폴더의 주제(topic.md), 사진(photos/), 첨부 글(refs/)을 읽어 블로그 초안을 쓰고, Playwright로 네이버 블로그에 임시저장한 뒤 완료된 건을 done/ 으로 옮긴다. 사용자가 블로그 초안 작성, /blog-draft, "이 폴더로 글 써줘", "네이버에 올려줘" 등을 요청할 때 사용.
-argument-hint: [글이름] (생략하면 inputs/ 의 신규 건 전부)
+description: inputs/ 아래 주제 폴더(.md 1개 + 사진 n장)마다 글을 써서 Playwright로 네이버 블로그에 임시글로 저장하고(발행 안 함), 완료된 건을 done/ 으로 옮긴다. 하위 폴더가 여러 개면 전부 처리한다. 사용자가 블로그 글 작성, /blog-draft, "inputs 작업해줘", "네이버에 임시저장해줘" 등을 요청할 때 사용.
+argument-hint: [주제폴더] (생략하면 inputs/ 의 주제 폴더 전부)
 ---
 
-# 블로그 초안 작성 → 네이버 임시저장 → 완료 정리
+# 네이버 블로그 임시글 작성 (중간 원고 → 네이버 임시저장 → 완료 정리)
 
 ## 대상 고르기
 
-- 인자로 `<글이름>`을 받으면 `inputs/<글이름>/` 하나만 처리한다.
-- 인자가 없으면 `inputs/` 아래 폴더 전부(`_example` 제외)를 이름순으로 하나씩 처리한다. 없으면 "신규 건 없음"이라고 알리고 끝낸다.
-- 각 건은 A → B → C 순서로 끝까지 처리한 뒤 다음 건으로 넘어간다.
+- `inputs/` 아래 **하위 폴더 하나 = 주제 하나 = 네이버 임시글 하나**다.
+- 기본은 `inputs/` 아래 하위 폴더 **전부**(`_example` 제외)를 이름순으로 처리한다. 사용자가 여러 주제를 모아둔 것이므로 몇 개든 묻지 않고 다 한다. 없으면 "신규 건 없음"이라고 알리고 끝낸다.
+- 인자나 요청으로 특정 폴더를 지정하면 그 폴더만 처리한다.
+- 각 건은 A → B → C 순서로 끝까지 처리한 뒤 다음 건으로 넘어간다. 한 건이 실패해도 멈추지 말고 남겨둔 채 다음 건을 진행하고, 마지막에 한꺼번에 보고한다.
+- 네이버 로그인(B-2)은 첫 건에서 한 번만 확인하면 된다.
 
 ## 폴더 구조
 
 ```
-inputs/<글이름>/          신규 입력 (topic.md 필수, photos/, refs/ 선택)
-drafts/<글이름>/          작성 중 초안 (draft.md, images/) — 임시저장 전까지 여기 남는다
-done/<YYYY-MM-DD>-<글이름>/
-├── input/               완료된 입력 (inputs/<글이름>/ 을 옮긴 것)
-└── draft/               완료된 초안 (drafts/<글이름>/ 을 옮긴 것)
+inputs/<주제폴더>/        신규 입력: .md 파일 1개 + 사진 n장 (하위 폴더 없이 한 곳에)
+drafts/<주제폴더>/        중간 원고 (draft.md, images/) — 임시저장 전까지 여기 남는다
+done/<YYYY-MM-DD>-<주제폴더>/
+├── input/               완료된 입력 (inputs/<주제폴더>/ 를 옮긴 것)
+└── draft/               완료된 중간 원고 (drafts/<주제폴더>/ 를 옮긴 것)
 ```
 
-`topic.md` frontmatter 항목(모두 선택, 없으면 기본값):
+- `.md` 파일 이름은 자유다(`topic.md`, `주제.md` 등). 폴더 안의 `.md`가 0개이거나 2개 이상이면 그 건은 건너뛰고 보고한다.
+- 사진: `jpg/jpeg/png/heic/webp/gif` (대소문자 무관). 사진이 0장이어도 글은 쓴다.
+- 그 밖의 파일(`.DS_Store` 등)은 무시한다.
+
+`.md` 맨 위 frontmatter 항목(모두 선택, 없으면 기본값. frontmatter 자체가 없어도 된다):
 
 | 키 | 기본값 | 의미 |
 |---|---|---|
@@ -35,23 +41,22 @@ done/<YYYY-MM-DD>-<글이름>/
 
 ---
 
-## A. 초안 작성
+## A. 중간 원고 작성 (drafts/, 네이버에 넣기 전 작업본)
 
-`drafts/<글이름>/draft.md`가 이미 있으면(지난번 임시저장이 실패한 경우) 새로 쓰지 않고 그 초안을 그대로 B로 넘긴다. 사용자가 다시 쓰라고 하면 그때만 새로 쓴다.
+`drafts/<주제폴더>/draft.md`가 이미 있으면(지난번 임시저장이 실패한 경우) 새로 쓰지 않고 그 원고를 그대로 B로 넘긴다. 사용자가 다시 쓰라고 하면 그때만 새로 쓴다.
 
 1. **읽기**
-   - `topic.md`를 읽고 frontmatter와 본문을 파악한다. 없으면 이 건은 건너뛰고 `templates/topic.md`를 복사해 쓰라고 안내한다.
-   - `refs/`의 모든 텍스트 파일을 읽는다.
-   - `photos/`의 모든 이미지를 Read 도구로 **직접 보고** 각 사진에 무엇이 찍혔는지 파악한다. 파일명 순서를 기본 순서로 본다. HEIC처럼 Read로 열리지 않는 형식은 `sips -s format jpeg <원본> --out <scratchpad 경로>`로 변환해서 본다.
+   - `.md` 파일을 읽고 frontmatter와 본문(주제, 전하고 싶은 내용, 메모, 붙여 둔 참고 글)을 파악한다.
+   - 폴더 안의 사진을 모두 Read 도구로 **직접 보고** 각 사진에 무엇이 찍혔는지 파악한다. 파일명 순서를 기본 순서로 본다. HEIC처럼 Read로 열리지 않는 형식은 `sips -s format jpeg <원본> --out <scratchpad 경로>`로 변환해서 본다.
    - 사진 촬영 시각이 흐름에 도움이 되면 `mdls -name kMDItemContentCreationDate <파일>`로 확인한다.
 
 2. **구성 잡기**
    - 주제의 핵심 메시지 한 줄을 정한다.
    - 사진을 글 흐름 안에 배치할 위치를 정한다. 모든 사진을 쓸 필요는 없고, 흐름에 맞지 않거나 중복된 사진은 빼되 마지막 보고에 무엇을 뺐는지 알린다.
-   - refs 내용은 그대로 베끼지 말고 요약·재서술해 녹인다. 직접 인용은 짧게, 출처를 밝힌다.
+   - `.md`에 붙여 둔 참고 글은 그대로 베끼지 말고 요약·재서술해 녹인다. 직접 인용은 짧게, 출처를 밝힌다.
 
-3. **쓰기** — `drafts/<글이름>/draft.md`
-   - 사진은 `drafts/<글이름>/images/`로 복사하고(HEIC는 jpg로 변환) 상대 경로 `images/<파일명>`으로 넣는다.
+3. **쓰기** — `drafts/<주제폴더>/draft.md`
+   - 사진은 `drafts/<주제폴더>/images/`로 복사하고(HEIC는 jpg로 변환) 상대 경로 `images/<파일명>`으로 넣는다.
    - 각 사진 바로 아래 줄에 한 줄 캡션을 `*캡션*` 형태로 단다.
    - 네이버 에디터로 옮길 것이므로 문법은 `#`/`##` 제목, 문단, `-` 목록, `>` 인용, 이미지+캡션만 쓴다. 표·코드블록·중첩 목록은 쓰지 않는다.
    - 형식:
@@ -75,7 +80,7 @@ done/<YYYY-MM-DD>-<글이름>/
      *<캡션>*
      ```
 
-   - 사실 확인이 필요한 부분이나 사용자가 채워야 할 부분은 `<!-- TODO: ... -->` 주석으로 남긴다(네이버에는 올라가지 않는다). 사진·메모·refs에 없는 구체적 사실(가격, 지명, 날짜 등)을 지어내지 않는다.
+   - 사실 확인이 필요한 부분이나 사용자가 채워야 할 부분은 `<!-- TODO: ... -->` 주석으로 남긴다(네이버에는 올라가지 않는다). 사진·`.md`에 없는 구체적 사실(가격, 지명, 날짜 등)을 지어내지 않는다.
 
 ---
 
@@ -86,7 +91,7 @@ done/<YYYY-MM-DD>-<글이름>/
 ### B-1. 에디터에 넣을 블록 만들기
 
 ```bash
-python3 scripts/md_to_blocks.py drafts/<글이름>/draft.md
+python3 scripts/md_to_blocks.py drafts/<주제폴더>/draft.md
 ```
 
 출력 JSON의 `title`, `tags`, `blocks`(heading / paragraph / list / quote / image)를 순서대로 입력한다. 이미지 `path`는 절대 경로다.
@@ -144,7 +149,7 @@ async (page) => page.frame('mainFrame').evaluate(() => [...document.querySelecto
 
 **사진**
 1. 커서가 본문 마지막 줄에 있는 상태에서 `browser_click`으로 툴바 버튼 "사진 추가"를 누른다(run_code 안에서 `waitForEvent('filechooser')`를 쓰면 MCP가 먼저 가로채서 안 됨).
-2. 파일 선택 모달이 뜨면 `browser_file_upload`에 `path`를 넘긴다. **업로드 허용 경로는 Claude Code를 연 작업 폴더 아래뿐**이다(scratchpad·/tmp 불가). `drafts/<글이름>/images/`의 절대 경로를 쓴다.
+2. 파일 선택 모달이 뜨면 `browser_file_upload`에 `path`를 넘긴다. **업로드 허용 경로는 Claude Code를 연 작업 폴더 아래뿐**이다(scratchpad·/tmp 불가). `drafts/<주제폴더>/images/`의 절대 경로를 쓴다.
 3. 3초 기다려 `se-image` 컴포넌트의 `img src`가 `blogfiles.pstatic.net`인지 확인한다. 첫 사진은 자동으로 "대표" 사진이 된다.
 4. 오른쪽에 "라이브러리" 패널이 열리는데, 입력에는 지장이 없다.
 5. 캡션이 있으면 **사진을 먼저 클릭해야** 캡션 칸이 보인다:
@@ -185,10 +190,10 @@ await page.mouse.click(box.x + box.width / 2, box.y + box.height + 25);
 B-5가 성공한 건만 옮긴다.
 
 ```bash
-dest="done/$(date +%F)-<글이름>"
+dest="done/$(date +%F)-<주제폴더>"
 mkdir -p "$dest"
-mv "inputs/<글이름>" "$dest/input"
-mv "drafts/<글이름>" "$dest/draft"
+mv "inputs/<주제폴더>" "$dest/input"
+mv "drafts/<주제폴더>" "$dest/draft"
 ```
 
 `$dest`가 이미 있으면 `-2`, `-3`을 붙인다.
