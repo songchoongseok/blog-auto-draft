@@ -31,6 +31,7 @@
 ```
 .claude/skills/blog-draft/SKILL.md   글 작성 + 네이버 임시저장 스킬
 scripts/md_to_blocks.py              중간 원고(draft.md) → 에디터 입력용 블록(JSON)
+scripts/naver_segments.py            블록(JSON) → 에디터 입력용 Playwright 코드 조각
 templates/topic.md                   주제 파일 템플릿
 inputs/<주제폴더>/                    신규 입력 (.md 1개 + 사진 n장)
 drafts/<주제폴더>/                    중간 원고 — 네이버에 넣기 전 작업본, 임시저장 실패 시 여기 남음

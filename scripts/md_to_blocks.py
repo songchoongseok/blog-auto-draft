@@ -1,7 +1,11 @@
 """draft.md 를 네이버 에디터 입력용 블록(JSON)으로 변환한다.
 
-사용: python3 scripts/md_to_blocks.py drafts/<글이름>/draft.md
-출력: {"title": ..., "tags": [...], "blocks": [{"type": "heading"|"paragraph"|"image"|"quote"|"list", ...}]}
+사용: python3 scripts/md_to_blocks.py drafts/<주제폴더>/draft.md
+출력: {"title": ..., "tags": [...], "align": "left"|"center",
+       "blocks": [{"type": "heading"|"paragraph"|"image"|"quote"|"list"|"divider"|"place", ...}]}
+
+- 문단 안의 줄바꿈은 그대로 살린다(한 줄 = 에디터 한 줄). 빈 줄은 문단 사이 빈 줄이 된다.
+- 본문의 `---` 는 구분선, `[[장소: 검색어]]` 는 네이버 장소 지도가 된다.
 """
 import json
 import re
@@ -10,6 +14,7 @@ from pathlib import Path
 
 IMAGE_RE = re.compile(r"^!\[(?P<alt>[^\]]*)\]\((?P<src>[^)]+)\)\s*$")
 CAPTION_RE = re.compile(r"^\*(?P<text>[^*].*[^*]|[^*])\*\s*$")
+PLACE_RE = re.compile(r"^\[\[장소:\s*(?P<query>.+?)\s*\]\]$")
 COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
 
 
@@ -43,12 +48,13 @@ def main(path):
     meta, lines = parse_frontmatter([l.rstrip() for l in raw.splitlines()])
     title = meta.get("title", "")
     tags = [t.strip().strip("'\"") for t in meta.get("tags", "").strip("[]").split(",") if t.strip()]
+    align = "center" if meta.get("align", "").strip() in ("center", "가운데") else "left"
 
     blocks, para = [], []
 
     def flush():
         if para:
-            blocks.append({"type": "paragraph", "text": strip_inline(" ".join(para))})
+            blocks.append({"type": "paragraph", "lines": [strip_inline(l) for l in para]})
             para.clear()
 
     for line in lines:
@@ -61,6 +67,12 @@ def main(path):
         elif s.startswith("#"):
             flush()
             blocks.append({"type": "heading", "text": strip_inline(s.lstrip("#"))})
+        elif s in ("---", "***", "___"):
+            flush()
+            blocks.append({"type": "divider"})
+        elif m := PLACE_RE.match(s):
+            flush()
+            blocks.append({"type": "place", "query": m["query"]})
         elif m := IMAGE_RE.match(s):
             flush()
             blocks.append({"type": "image", "path": str((path.parent / m["src"]).resolve()),
@@ -81,7 +93,8 @@ def main(path):
             para.append(s)
     flush()
 
-    print(json.dumps({"title": title, "tags": tags, "blocks": blocks}, ensure_ascii=False, indent=1))
+    print(json.dumps({"title": title, "tags": tags, "align": align, "blocks": blocks},
+                     ensure_ascii=False, indent=1))
 
 
 if __name__ == "__main__":
