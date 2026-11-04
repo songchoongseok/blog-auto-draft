@@ -28,7 +28,7 @@ done/<YYYY-MM-DD>-<주제폴더>/
 - 사진: `jpg/jpeg/png/heic/webp/gif` (대소문자 무관). 사진이 0장이어도 글은 쓴다.
 - 그 밖의 파일(`.DS_Store` 등)은 무시한다.
 
-입력 `.md`는 사용자가 **직접 쓰는 블로그**의 재료다. frontmatter에는 `title`(가제)만 있다(없어도 된다). 본문은 `templates/topic.md`의 칸(주제, 꼭 전하고 싶은 것, 내 경험, 메모, 참고 글)으로 되어 있다.
+입력 `.md`는 사용자가 **직접 쓰는 블로그**의 재료다. frontmatter에는 `title`(가제)과 `category`(네이버 블로그 카테고리 이름, 예: 일상·맛집·리뷰)만 있다(둘 다 없어도 된다). 본문은 `templates/topic.md`의 칸(주제, 꼭 전하고 싶은 것, 내 경험, 메모, 참고 글)으로 되어 있다.
 
 문체·분량·태그·장소 등은 입력에서 받지 않고 Claude가 정한다:
 
@@ -37,7 +37,8 @@ done/<YYYY-MM-DD>-<주제폴더>/
 | 제목 | `title`을 가제로 삼아 아래 "제목" 규칙에 맞게 다듬는다. 없으면 주제에서 만든다 |
 | 문체 | 아래 "말투" 규칙(친근한 구어체 존댓말) |
 | 분량 | 1,500~2,500자. 사진이 아주 적으면 짧아져도 된다 |
-| 태그 | 주제·지역·업종에서 추천해 원고 frontmatter `tags`와 보고에 적는다 |
+| 카테고리 | 입력 `.md`의 `category`를 원고 frontmatter `category`로 그대로 옮긴다. 비어 있으면 넣지 않는다(블로그 기본 카테고리) |
+| 태그 | 10~15개를 골라 원고 frontmatter `tags`에 적는다(띄어쓰기 없이). 상호, `지역+업종`(수원맛집), 쇼핑몰·동네+업종(스타필드수원맛집), 메뉴(육개장맛집, 가브리살수육), 상황(퇴근후저녁) 순으로 섞는다. 같은 뜻의 검색어 변형(수원스타필드맛집/스타필드수원맛집)은 둘 다 넣어도 된다. 발행 설정 창에 자동으로 들어간다(B-5) |
 | 장소 지도 | 가게·장소 후기면 `.md`의 상호·지역으로 검색어를 만들어 원고 frontmatter `place`와 본문 `[[장소: 검색어]]`에 쓴다. 검색어는 `상호 + 시/구`(예: `육당헌 수원`)가 잘 잡힌다. 쇼핑몰 이름을 붙이면(`육당헌 스타필드 수원`) 결과가 없을 수 있어, 입력 코드는 뒤 단어를 빼며 다시 찾는다. 상호를 모르면 넣지 않는다. 찾은 주소(층 포함)는 기본정보에 써도 된다 |
 | 정렬 | 왼쪽(기본). 사용자가 가운데 정렬을 요청할 때만 원고 frontmatter에 `align: center` |
 
@@ -120,7 +121,8 @@ done/<YYYY-MM-DD>-<주제폴더>/
 ---
 title: 가평 대형카페 몽브레뉴 | 정원 산책하기 좋은 베이커리카페 (주차·메뉴·가격)
 date: 2026-11-03
-tags: [가평카페, 가평대형카페, 몽브레뉴]
+category: 맛집
+tags: [가평카페, 가평대형카페, 몽브레뉴, 가평베이커리카페, 정원카페, 서울근교카페]
 place: 몽브레뉴 가평
 ---
 
@@ -232,12 +234,17 @@ python3 scripts/naver_segments.py <scratchpad>/blocks.json <작업폴더>/.playw
 | 사진 캡션 | 사진 `img`를 **먼저 클릭해야** `.se-caption .se-text-paragraph`가 보임 | |
 | 끝으로 이동 | 마지막이 `se-text`면 그 마지막 줄 클릭+`End`, 아니면 마지막 컴포넌트 아래 25px 클릭 | |
 
-**태그**: 태그 입력란은 에디터가 아니라 "발행" 설정 창에 있다. 실수로 발행될 위험이 있어 **태그는 넣지 않는다**. 보고에 추천 태그 목록을 적어 사용자가 발행할 때 넣게 한다.
+**카테고리·태그**: 에디터가 아니라 "발행" 설정 창에 있다. 본문을 다 넣은 뒤 B-5에서 `99-publish-settings.js`로 넣는다.
 
 **최종 점검**: 다 넣은 뒤 컴포넌트를 세어 원고와 맞춰 본다(제목, 소제목 목록, 사진 수, 빈 캡션 수, 장소 지도 유무). 화면 밖 사진은 지연 로딩이라 `src`가 `data:image/svg`로 보일 수 있다. `scrollIntoViewIfNeeded()` 후 다시 확인한다.
 
-### B-5. 임시저장
+### B-5. 카테고리·태그 넣고 임시저장
 
+0. **카테고리·태그**: `99-publish-settings.js`를 실행한다.
+   - 상단 "발행" 버튼은 **설정 창만 연다**. 창 안 맨 아래의 최종 "발행" 버튼(`button[class^=confirm_btn]`)은 **절대 누르지 않는다**. 코드도 누르지 않는다.
+   - 카테고리를 고르면 "주제"도 자동으로 같이 바뀐다. 기본으로 `#첫글` 같은 태그가 미리 들어 있을 수 있는데 지우지 않는다.
+   - 반환값 확인: `category`가 원하는 이름인지, `tags`에 넣은 태그가 다 있는지, `layerClosed`가 `true`인지(Esc로 창이 닫혀야 다음 단계 버튼을 누를 수 있다), `warn`에 "카테고리 없음"이 없는지. 카테고리가 없으면 보고에 실제 목록과 함께 적는다.
+   - 확인된 동작: 설정 창을 닫았다 다시 열어도 카테고리·태그가 남아 있다. 임시저장 후 다시 불러왔을 때도 남는지는 아직 확인하지 못했다. 첫 실행 때 보고에 적고, 사용자가 확인하게 한다.
 1. **"저장" 버튼만** 누른다. **"발행" 버튼은 어떤 경우에도 누르지 않는다.**
    ```js
    async (page) => { const f = page.frame('mainFrame'); const cnt = f.locator('button[class^=save_count_btn]'); const before = await cnt.innerText(); await f.locator('button[class^=save_btn]').click(); let toast = ''; for (let i = 0; i < 20 && !toast.includes('임시저장'); i++) { await page.waitForTimeout(500); toast = await f.evaluate(() => [...document.querySelectorAll('[class*=toast], [class*=noti], [role=alert]')].filter(e => e.offsetParent).map(e => e.innerText).join(' | ')); } await page.waitForTimeout(1500); return {before, after: await cnt.innerText(), toast: toast.split(' | ')[0]}; }
@@ -284,4 +291,4 @@ mv "drafts/<주제폴더>" "$dest/draft"
 - 제목 후보 2~3개
 - 쓰지 않은 사진과 이유, 남긴 TODO 목록
 - `.md`에 더 적어 주면 좋은 경험 정보(맛, 주문 메뉴, 동행 등)
-- 발행할 때 넣을 추천 태그
+- 넣은 카테고리와 태그 목록(넣지 못한 것이 있으면 이유)

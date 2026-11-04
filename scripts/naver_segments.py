@@ -8,6 +8,7 @@
   NN-text.js          사진 사이의 글 구간(문단·소제목·목록·인용구·구분선·장소)
   NN-goto.js          본문 끝으로 이동 후 "사진 추가" 클릭 → 이어서 browser_file_upload
   NN-cap.js           업로드 완료 대기 + 캡션 입력
+  99-publish-settings.js  발행 설정 창을 열어 카테고리·태그만 넣고 Esc로 닫는다(발행 버튼은 누르지 않는다)
   plan.json           실행 순서 [{step, kind, file | path}]
 """
 import json
@@ -103,6 +104,29 @@ def wrap(body):
     return "async (page) => {\n" + body + "\n}\n"
 
 
+def publish_settings(category, tags):
+    # 상단 "발행" 버튼은 설정 창만 연다. 창 안의 최종 "발행"(button[class^=confirm_btn])은 절대 누르지 않는다.
+    # 카테고리를 고르면 주제도 자동으로 따라 바뀐다. 태그는 입력 후 Enter 하면 "#태그" 칩이 된다.
+    return HEAD + f"""const warn = [];
+await f.locator('button[class^=publish_btn]').click(); await page.waitForTimeout(1500);
+const cat = {J(category)};
+if (cat) {{
+  await f.locator('button[class^=selectbox_button]').click(); await page.waitForTimeout(600);
+  const items = f.locator('li[class^=item__]'); let picked = false;
+  for (let i = 0; i < await items.count(); i++) {{ if ((await items.nth(i).innerText()).trim() === cat) {{ await items.nth(i).locator('button, label, input').first().click(); await page.waitForTimeout(600); picked = true; break; }} }}
+  if (!picked) {{ warn.push('카테고리 없음: ' + cat + ' (있는 것: ' + (await items.allInnerTexts()).join(', ') + ')'); await f.locator('button[class^=selectbox_button]').click(); await page.waitForTimeout(300); }}
+}}
+const have = (await f.locator('[class^=tag__] [class^=text__]').allInnerTexts()).map(t => t.replace(/^#/, ''));
+for (const t of {J(tags)}) {{
+  if (have.includes(t)) continue;
+  await f.locator('input[class^=tag_input]').click(); await page.keyboard.type(t); await page.keyboard.press('Enter'); await page.waitForTimeout(250);
+}}
+const result = {{ category: await f.locator('button[class^=selectbox_button]').innerText(), tags: await f.locator('[class^=tag__] [class^=text__]').allInnerTexts(), warn }};
+await page.keyboard.press('Escape'); await page.waitForTimeout(600);
+result.layerClosed = (await f.locator('div[class^=layer_popup][class*=is_show]').count()) === 0;
+return result;"""
+
+
 def main(src, dst):
     d = json.load(open(src, encoding="utf-8"))
     out = Path(dst)
@@ -150,6 +174,11 @@ await img.locator('.se-caption .se-text-paragraph').click();
             (out / f"{n}-goto.js").write_text(wrap(goto), encoding="utf-8")
             (out / f"{n}-cap.js").write_text(wrap(cap), encoding="utf-8")
             plan.append({"step": n, "kind": "image", "goto": f"{n}-goto.js", "path": s["path"], "cap": f"{n}-cap.js"})
+
+    (out / "99-publish-settings.js").write_text(
+        wrap(publish_settings(d.get("category", ""), [t.lstrip("#").replace(" ", "") for t in d.get("tags", [])][:30])),
+        encoding="utf-8")
+    plan.append({"step": "99", "kind": "publish-settings", "file": "99-publish-settings.js"})
 
     (out / "plan.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1), encoding="utf-8")
     for p in plan:

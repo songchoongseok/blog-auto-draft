@@ -1,7 +1,7 @@
 """draft.md 를 네이버 에디터 입력용 블록(JSON)으로 변환한다.
 
 사용: python3 scripts/md_to_blocks.py drafts/<주제폴더>/draft.md
-출력: {"title": ..., "tags": [...], "align": "left"|"center",
+출력: {"title": ..., "category": "맛집"|"", "tags": [...], "align": "left"|"center",
        "blocks": [{"type": "heading"|"paragraph"|"image"|"quote"|"list"|"divider"|"place", ...}]}
 
 - 문단 안의 줄바꿈은 그대로 살린다(한 줄 = 에디터 한 줄). 빈 줄은 문단 사이 빈 줄이 된다.
@@ -34,7 +34,7 @@ def parse_frontmatter(lines):
         for line in lines[1:end]:
             if ":" in line:
                 k, v = line.split(":", 1)
-                v = v.strip()
+                v = re.sub(r"\s+#.*$", "", v).strip()
                 if len(v) >= 2 and v[0] == v[-1] and v[0] in "'\"":
                     v = v[1:-1]
                 meta[k.strip()] = v
@@ -49,6 +49,7 @@ def main(path):
     title = meta.get("title", "")
     tags = [t.strip().strip("'\"") for t in meta.get("tags", "").strip("[]").split(",") if t.strip()]
     align = "center" if meta.get("align", "").strip() in ("center", "가운데") else "left"
+    category = meta.get("category", "").strip()
 
     blocks, para = [], []
 
@@ -93,7 +94,7 @@ def main(path):
             para.append(s)
     flush()
 
-    print(json.dumps({"title": title, "tags": tags, "align": align, "blocks": blocks},
+    print(json.dumps({"title": title, "category": category, "tags": tags, "align": align, "blocks": blocks},
                      ensure_ascii=False, indent=1))
 
 
