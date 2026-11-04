@@ -54,13 +54,20 @@ def type_line(text):
 
 
 def place(query):
-    # 결과 첫 번째를 넣는다. 결과가 없으면 창을 닫고 경고를 남긴다.
+    # "육당헌 스타필드 수원"처럼 상호+위치 검색어는 결과가 없을 때가 있어서 뒤 단어를 하나씩 빼며 다시 찾는다.
+    # 끝까지 없으면 팝업만 닫는다. 결과 없이 끝난 실행에서 글쓰기 페이지가 새로 고침된 적이 있어,
+    # 닫기는 장소 팝업 안의 버튼으로 한정한다.
+    words = query.split()
+    queries = [" ".join(words[:n]) for n in range(len(words), 0, -1)]
     return f"""await f.locator('button:has-text("장소 추가")').first().click(); await page.waitForTimeout(1200);
-await f.locator('input[placeholder="장소명을 입력하세요."]').fill({J(query)});
-await f.locator('button.se-place-search-button').click(); await page.waitForTimeout(2500);
-{{ const item = f.locator('.se-place-map-search-result-item').first();
-  if (await item.count()) {{ warn.push('장소: ' + (await item.innerText()).replace(/\\n/g, ' / ')); await item.hover(); await page.waitForTimeout(300); await item.locator('button.se-place-add-button').click(); await page.waitForTimeout(600); await f.locator('.se-popup-button-confirm:visible').first().click(); await page.waitForTimeout(1500); }}
-  else {{ warn.push('장소 검색 결과 없음: ' + {J(query)}); await f.locator('.se-popup-close-button:visible').first().click(); }} }}
+{{ let added = false;
+  for (const q of {J(queries)}) {{
+    await f.locator('input[placeholder="장소명을 입력하세요."]').fill(q);
+    await f.locator('button.se-place-search-button').click(); await page.waitForTimeout(2500);
+    const item = f.locator('.se-place-map-search-result-item').first();
+    if (await item.count()) {{ warn.push('장소(' + q + '): ' + (await item.innerText()).replace(/\\n/g, ' / ')); await item.hover(); await page.waitForTimeout(300); await item.locator('button.se-place-add-button').click(); await page.waitForTimeout(600); await f.locator('.se-popup-placesMap .se-popup-button-confirm').first().click(); await page.waitForTimeout(1500); added = true; break; }}
+  }}
+  if (!added) {{ warn.push('장소 검색 결과 없음: ' + {J(query)}); await f.locator('.se-popup-placesMap .se-popup-close-button').first().click(); await page.waitForTimeout(500); }} }}
 {GOTO_END.replace(HEAD, '')}"""
 
 
