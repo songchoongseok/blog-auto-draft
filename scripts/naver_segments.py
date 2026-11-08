@@ -54,21 +54,24 @@ def type_line(text):
     return f"{typed(text)} await page.keyboard.press('Enter');"
 
 
-def place(query):
+def place(query, match=""):
     # "육당헌 스타필드 수원"처럼 상호+위치 검색어는 결과가 없을 때가 있어서 뒤 단어를 하나씩 빼며 다시 찾는다.
+    # match 가 있으면 결과 중 그 문구(주소 일부 등)가 들어간 항목만 고른다. "우동집"처럼 상호가 흔할 때 쓴다.
     # 끝까지 없으면 팝업만 닫는다. 결과 없이 끝난 실행에서 글쓰기 페이지가 새로 고침된 적이 있어,
     # 닫기는 장소 팝업 안의 버튼으로 한정한다.
     words = query.split()
     queries = [" ".join(words[:n]) for n in range(len(words), 0, -1)]
     return f"""await f.locator('button:has-text("장소 추가")').first().click(); await page.waitForTimeout(1200);
-{{ let added = false;
+{{ let added = false; const want = {J(match)};
   for (const q of {J(queries)}) {{
     await f.locator('input[placeholder="장소명을 입력하세요."]').fill(q);
     await f.locator('button.se-place-search-button').click(); await page.waitForTimeout(2500);
-    const item = f.locator('.se-place-map-search-result-item').first();
-    if (await item.count()) {{ warn.push('장소(' + q + '): ' + (await item.innerText()).replace(/\\n/g, ' / ')); await item.hover(); await page.waitForTimeout(300); await item.locator('button.se-place-add-button').click(); await page.waitForTimeout(600); await f.locator('.se-popup-placesMap .se-popup-button-confirm').first().click(); await page.waitForTimeout(1500); added = true; break; }}
+    const items = f.locator('.se-place-map-search-result-item');
+    let item = null;
+    for (let i = 0; i < await items.count(); i++) {{ const t = await items.nth(i).innerText(); if (!want || t.includes(want)) {{ item = items.nth(i); break; }} }}
+    if (item) {{ warn.push('장소(' + q + '): ' + (await item.innerText()).replace(/\\n/g, ' / ')); await item.scrollIntoViewIfNeeded(); await item.hover(); await page.waitForTimeout(300); await item.locator('button.se-place-add-button').click(); await page.waitForTimeout(600); await f.locator('.se-popup-placesMap .se-popup-button-confirm').first().click(); await page.waitForTimeout(1500); added = true; break; }}
   }}
-  if (!added) {{ warn.push('장소 검색 결과 없음: ' + {J(query)}); await f.locator('.se-popup-placesMap .se-popup-close-button').first().click(); await page.waitForTimeout(500); }} }}
+  if (!added) {{ warn.push('장소 검색 결과 없음: ' + {J(query)} + (want ? ' (일치 조건: ' + want + ')' : '')); await f.locator('.se-popup-placesMap .se-popup-close-button').first().click(); await page.waitForTimeout(500); }} }}
 {GOTO_END.replace(HEAD, '')}"""
 
 
@@ -95,7 +98,7 @@ def text_segment(blocks, align):
             out.append("await f.locator('button:has-text(\"구분선 추가\")').first().click(); await page.waitForTimeout(600);")
             out.append(GOTO_END.replace(HEAD, ""))
         elif t == "place":
-            out.append(place(b["query"]))
+            out.append(place(b["query"], b.get("match", "")))
     out.append(RET.replace("return await", "const comps = await").rstrip(";") + "; return {warn, comps};")
     return "\n".join(out)
 

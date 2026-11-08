@@ -6,6 +6,7 @@
 
 - 문단 안의 줄바꿈은 그대로 살린다(한 줄 = 에디터 한 줄). 빈 줄은 문단 사이 빈 줄이 된다.
 - 본문의 `---` 는 구분선, `[[장소: 검색어]]` 는 네이버 장소 지도가 된다.
+  `[[장소: 검색어 | 주소 일부]]` 처럼 쓰면 검색 결과 중 그 문구가 들어간 곳만 고른다(상호가 흔할 때).
 """
 import json
 import re
@@ -14,7 +15,7 @@ from pathlib import Path
 
 IMAGE_RE = re.compile(r"^!\[(?P<alt>[^\]]*)\]\((?P<src>[^)]+)\)\s*$")
 CAPTION_RE = re.compile(r"^\*(?P<text>[^*].*[^*]|[^*])\*\s*$")
-PLACE_RE = re.compile(r"^\[\[장소:\s*(?P<query>.+?)\s*\]\]$")
+PLACE_RE = re.compile(r"^\[\[장소:\s*(?P<query>[^|\]]+?)\s*(?:\|\s*(?P<match>[^\]]+?)\s*)?\]\]$")
 COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
 
 
@@ -73,7 +74,7 @@ def main(path):
             blocks.append({"type": "divider"})
         elif m := PLACE_RE.match(s):
             flush()
-            blocks.append({"type": "place", "query": m["query"]})
+            blocks.append({"type": "place", "query": m["query"], "match": m["match"] or ""})
         elif m := IMAGE_RE.match(s):
             flush()
             blocks.append({"type": "image", "path": str((path.parent / m["src"]).resolve()),
