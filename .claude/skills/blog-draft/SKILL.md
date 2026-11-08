@@ -1,32 +1,28 @@
 ---
 name: blog-draft
-description: inputs/ 아래 주제 폴더(.md 1개 + 사진 n장)마다 글을 써서 Playwright로 네이버 블로그에 임시글로 저장하고(발행 안 함), 완료된 건을 done/ 으로 옮긴다. 하위 폴더가 여러 개면 전부 처리한다. 사용자가 블로그 글 작성, /blog-draft, "inputs 작업해줘", "네이버에 임시저장해줘" 등을 요청할 때 사용.
-argument-hint: [주제폴더] (생략하면 inputs/ 의 주제 폴더 전부)
+description: inputs/ 에 바로 넣은 topic.md + 사진 n장으로 글을 써서 Playwright로 네이버 블로그에 임시글로 저장하고(발행 안 함), 완료된 건을 done/ 으로 옮긴 뒤 inputs/ 에 빈 topic.md를 다시 준비한다. 사용자가 블로그 글 작성, /blog-draft, "inputs 작업해줘", "네이버에 임시저장해줘" 등을 요청할 때 사용.
 ---
 
 # 네이버 블로그 임시글 작성 (중간 원고 → 네이버 임시저장 → 완료 정리)
 
-## 대상 고르기
+## 대상 고르기 (2026-11-08 기준: 한 번에 한 건)
 
-- `inputs/` 아래 **하위 폴더 하나 = 주제 하나 = 네이버 임시글 하나**다.
-- 기본은 `inputs/` 아래 하위 폴더 **전부**(`_example` 제외)를 이름순으로 처리한다. 사용자가 여러 주제를 모아둔 것이므로 몇 개든 묻지 않고 다 한다. 없으면 "신규 건 없음"이라고 알리고 끝낸다.
-- 인자나 요청으로 특정 폴더를 지정하면 그 폴더만 처리한다.
-- 각 건은 A → B → C 순서로 끝까지 처리한 뒤 다음 건으로 넘어간다. 한 건이 실패해도 멈추지 말고 남겨둔 채 다음 건을 진행하고, 마지막에 한꺼번에 보고한다.
-- 네이버 로그인(B-2)은 첫 건에서 한 번만 확인하면 된다.
+- 사용자는 **한 번에 한 건만** 넣는다. 하위 폴더를 만들지 않고 `inputs/` 바로 아래에 `topic.md` 1개 + 사진 n장을 둔다.
+- `inputs/topic.md`는 항상 빈 양식으로 준비돼 있다(C에서 다시 만든다). 없으면 `cp templates/topic.md inputs/topic.md`로 만든다.
+- `topic.md`가 빈 양식 그대로이고(제목·주제·경험이 비어 있음) 사진도 없으면 "신규 건 없음"이라고 알리고 끝낸다.
+- `inputs/` 아래에 예전 방식의 하위 폴더가 남아 있으면 그 폴더도 한 건으로 보고 같은 방법으로 처리한다.
 
 ## 폴더 구조
 
 ```
-inputs/<주제폴더>/        신규 입력: .md 파일 1개 + 사진 n장 (하위 폴더 없이 한 곳에)
-drafts/<주제폴더>/        중간 원고 (draft.md, images/) — 임시저장 전까지 여기 남는다
-done/<YYYY-MM-DD>-<주제폴더>/
-├── input/               완료된 입력 (inputs/<주제폴더>/ 를 옮긴 것)
-└── draft/               완료된 중간 원고 (drafts/<주제폴더>/ 를 옮긴 것)
+inputs/                  신규 입력: topic.md 1개 + 사진 n장 (+ Claude가 쓰는 result.md)
+drafts/                  중간 원고 (draft.md, images/) — 임시저장 전까지 여기 남는다
+done/<제목>/              완료: topic.md + 원본 사진 + draft.md (한 폴더에)
 ```
 
-- `.md` 파일 이름은 자유다(`topic.md`, `주제.md` 등). 폴더 안의 `.md`가 0개이거나 2개 이상이면 그 건은 건너뛰고 보고한다.
+- `<제목>`은 `topic.md`의 `title`을 그대로 쓴다(날짜·번호 없이). 파일 이름에 못 쓰는 `/`·`:`는 `-`로 바꾼다. `title`이 비어 있으면 상호·주제로 짧게 짓는다.
 - 사진: `jpg/jpeg/png/heic/webp/gif` (대소문자 무관). 사진이 0장이어도 글은 쓴다.
-- 그 밖의 파일(`.DS_Store` 등)은 무시한다.
+- 그 밖의 파일(`.DS_Store`, `.gitkeep` 등)은 무시하고 옮기지 않는다.
 
 입력 `.md`는 사용자가 **직접 쓰는 블로그**의 재료다. frontmatter에는 `title`(가제)과 `category`(네이버 블로그 카테고리 이름, 예: 일상·맛집·리뷰)만 있다(둘 다 없어도 된다). 본문은 `templates/topic.md`의 칸(주제, 꼭 전하고 싶은 것, 내 경험, 메모, 참고 글)으로 되어 있다.
 
@@ -45,13 +41,13 @@ done/<YYYY-MM-DD>-<주제폴더>/
 
 ## 진행 방식 (2026-11-07 기준)
 
-1. 먼저 주제 폴더에 `result.md`(제목·카테고리·태그 + 본문 + `📷 [사진] 파일명 — 설명` 자리 + `[지도]` 자리 + 쓰지 않은 사진 표)를 쓰고 사용자에게 보여 준다.
+1. 먼저 `inputs/result.md`에(제목·카테고리·태그 + 본문 + `📷 [사진] 파일명 — 설명` 자리 + `[지도]` 자리 + 쓰지 않은 사진 표)를 쓰고 사용자에게 보여 준다.
 2. 사용자가 고칠 점을 말하면 result.md를 고친다. 사용자가 네이버 플레이스 링크를 주면 주소·영업시간·주차·편의 정보를 읽어 정보 블록에 넣는다.
-3. 사용자가 "작성해줘"라고 하면 result.md를 `drafts/<주제폴더>/draft.md`로 옮긴다(`────`→`---`, 사진 줄→`![설명](images/pNN.jpg)` + `sips`로 축소 복사, `[지도]`→`[[장소: 검색어 | 주소 일부]]`). 그 다음 B(네이버 입력·카테고리·태그·임시저장)와 C(done 이동)를 한다.
+3. 사용자가 "작성해줘"라고 하면 result.md를 `drafts/draft.md`로 옮긴다(`────`→`---`, 사진 줄→`![설명](images/pNN.jpg)` + `sips`로 축소 복사, `[지도]`→`[[장소: 검색어 | 주소 일부]]`). 그 다음 B(네이버 입력·카테고리·태그·임시저장)와 C(done 이동)를 한다.
 
 ## A. 중간 원고 작성 (drafts/, 네이버에 넣기 전 작업본)
 
-`drafts/<주제폴더>/draft.md`가 이미 있으면(지난번 임시저장이 실패한 경우) 새로 쓰지 않고 그 원고를 그대로 B로 넘긴다. 사용자가 다시 쓰라고 하면 그때만 새로 쓴다.
+`drafts/draft.md`가 이미 있으면(지난번 임시저장이 실패한 경우) 새로 쓰지 않고 그 원고를 그대로 B로 넘긴다. 사용자가 다시 쓰라고 하면 그때만 새로 쓴다.
 
 1. **읽기**
    - `.md` 파일을 읽고 frontmatter와 본문(주제, 내 경험, 메모, 붙여 둔 참고 글)을 파악한다.
@@ -63,8 +59,8 @@ done/<YYYY-MM-DD>-<주제폴더>/
    - **개인정보가 보이는 사진은 뺀다**: 차량 번호판이 읽히는 사진, 모르는 사람(특히 아이)이 크게·정면으로 찍힌 사진, 카드 번호·영수증 개인정보. 빼기 아까운 사진은 넣고 보고에 "N번 사진 얼굴 모자이크 필요"라고 적는다.
    - `.md`에 붙여 둔 참고 글은 그대로 베끼지 말고 요약·재서술해 녹인다. 직접 인용은 짧게, 출처를 밝힌다.
 
-3. **쓰기** — `drafts/<주제폴더>/draft.md`
-   - 사진은 `sips -Z 2000 -s format jpeg -s formatOptions 85 <원본> --out drafts/<주제폴더>/images/NN.jpg`로 줄여 복사하고 상대 경로 `images/NN.jpg`로 넣는다(업로드가 빨라지고 HEIC도 jpg가 된다).
+3. **쓰기** — `drafts/draft.md`
+   - 사진은 `sips -Z 2000 -s format jpeg -s formatOptions 85 <원본> --out drafts/images/NN.jpg`로 줄여 복사하고 상대 경로 `images/NN.jpg`로 넣는다(업로드가 빨라지고 HEIC도 jpg가 된다).
    - 네이버 에디터로 옮길 수 있는 문법만 쓴다. `scripts/md_to_blocks.py`가 이렇게 바꾼다:
 
      | 원고 문법 | 에디터 |
@@ -141,8 +137,8 @@ done/<YYYY-MM-DD>-<주제폴더>/
 ### B-1. 입력 코드 만들기
 
 ```bash
-python3 scripts/md_to_blocks.py drafts/<주제폴더>/draft.md > <scratchpad>/blocks.json
-python3 scripts/naver_segments.py <scratchpad>/blocks.json <작업폴더>/.playwright-mcp/seg-<주제폴더>
+python3 scripts/md_to_blocks.py drafts/draft.md > <scratchpad>/blocks.json
+python3 scripts/naver_segments.py <scratchpad>/blocks.json <작업폴더>/.playwright-mcp/seg-<이름>
 ```
 
 - 두 번째 출력 폴더는 **Claude Code 작업 폴더 아래**여야 한다(`browser_run_code_unsafe`의 `filename`과 `browser_file_upload`는 작업 폴더 밖 파일을 못 읽는다). `.playwright-mcp/`는 gitignore 대상이다.
@@ -223,7 +219,7 @@ python3 scripts/naver_segments.py <scratchpad>/blocks.json <작업폴더>/.playw
 2. 성공 조건 두 가지를 모두 확인한다.
    - 알림 "임시저장이 완료되었습니다."가 뜬다.
    - 임시글 숫자가 B-3-4에서 기록한 값보다 1 늘었다.
-3. 실패하거나 확인이 안 되면 C로 가지 말고, 그 건은 `inputs/`, `drafts/`에 그대로 둔 채 이유를 보고한다(다음 실행 때 같은 원고로 다시 시도된다).
+3. 실패하거나 확인이 안 되면 C로 가지 말고, `inputs/`, `drafts/`를 그대로 둔 채 이유를 보고한다(다음 실행 때 같은 원고로 다시 시도된다).
 4. 여러 건을 처리할 때는 다음 건마다 B-3(블로그 홈 → 글쓰기)부터 다시 한다. 쓰던 글쓰기 탭은 닫는다.
 
 ---
@@ -242,23 +238,25 @@ python3 scripts/naver_segments.py <scratchpad>/blocks.json <작업폴더>/.playw
 
 ## C. 완료 정리
 
-B-5가 성공한 건만 옮긴다.
+B-5가 성공한 건만 옮긴다. 사진이 두 번 남지 않게 **원본 사진만** 보관하고, `drafts/images/`의 축소 사본과 `result.md`는 남기지 않는다.
 
 ```bash
-dest="done/$(date +%F)-<주제폴더>"
+dest="done/<제목>"
 mkdir -p "$dest"
-mv "inputs/<주제폴더>" "$dest/input"
-mv "drafts/<주제폴더>" "$dest/draft"
+mv inputs/topic.md drafts/draft.md "$dest/"
+find inputs -maxdepth 1 -type f -iregex '.*\.\(jpe?g\|png\|heic\|webp\|gif\)' -exec mv {} "$dest/" \;
+rm -r drafts/images inputs/result.md        # 축소 사본·검토용 원고 (막히면 남겨 두고 보고)
+cp templates/topic.md inputs/topic.md       # 다음 건용 빈 양식
 ```
 
-`$dest`가 이미 있으면 `-2`, `-3`을 붙인다. `done/`은 gitignore 대상이라 GitHub에 올라가지 않는다.
+`$dest`가 이미 있으면 ` (2)`, ` (3)`을 붙인다. `done/`은 gitignore 대상이라 GitHub에 올라가지 않는다. 옮긴 뒤 `inputs/`에 빈 `topic.md`만, `drafts/`에는 `.gitkeep`만 남았는지 확인한다.
 
-입력 코드 폴더(`.playwright-mcp/seg-<주제폴더>`)는 작업 폴더 안이라 `rm -rf`가 안전 검사에 막힐 수 있다. 막히면 지우지 말고 보고에 남긴다.
+입력 코드 폴더(`.playwright-mcp/seg-<이름>`)는 작업 폴더 안이라 `rm -rf`가 안전 검사에 막힐 수 있다. 막히면 지우지 말고 보고에 남긴다.
 
 ## 보고
 
 처리한 건마다 채팅에 짧게:
-- 결과: 임시저장 완료(→ `done/...` 경로) / 실패(이유, 남겨둔 위치)
+- 결과: 임시저장 완료(→ `done/<제목>/`) / 실패(이유, 남겨둔 위치)
 - 제목 후보 2~3개
 - 쓰지 않은 사진과 이유, 모자이크가 필요한 사진
 - 발행 전 셀프 체크에서 정보가 없어 못 채운 항목
