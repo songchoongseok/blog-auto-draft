@@ -66,7 +66,8 @@ def main(path):
         elif s.startswith("# "):
             flush()
             title = title or s[2:].strip()  # 본문 H1 은 제목 칸으로 간다
-        elif s.startswith("#"):
+        elif re.match(r"#{2,6}\s", s):
+            # "## 소제목"처럼 # 뒤에 공백이 있을 때만 소제목. "#메가커피 #태그" 같은 해시태그 줄은 본문으로 둔다
             flush()
             blocks.append({"type": "heading", "text": strip_inline(s.lstrip("#"))})
         elif s in ("---", "***", "___"):

@@ -21,7 +21,7 @@ J = lambda s: json.dumps(s, ensure_ascii=False)
 HEAD = "const f = page.frame('mainFrame');\n"
 
 GOTO_END = HEAD + """{ const last = f.locator('.se-component').last();
-  if (await last.evaluate(e => e.classList.contains('se-text'))) { await last.locator('.se-text-paragraph').last().click(); await page.keyboard.press('End'); }
+  if (await last.evaluate(e => e.classList.contains('se-text'))) { await last.locator('.se-text-paragraph').last().click({force: true}); await page.keyboard.press('End'); }
   else { const b = await last.boundingBox(); await page.mouse.click(b.x + b.width / 2, b.y + b.height + 25); await page.waitForTimeout(300); } }
 """
 
